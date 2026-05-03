@@ -9,9 +9,7 @@ logger = logging.getLogger(__name__)
 
 
 def Wavelet_HMM_Strategy(df, symbol, MODEL_FILE, wavelet_window, wavelet_level, wavelet_type, consolidation_required):
-    """
-    Estrategia basada en Wavelet y Hidden Markov Models
-    """
+
     global last_signal_time
 
     magic = 5555555555
@@ -21,44 +19,36 @@ def Wavelet_HMM_Strategy(df, symbol, MODEL_FILE, wavelet_window, wavelet_level, 
     if not isinstance(df, pd.DataFrame):
         df = pd.DataFrame(df)
 
-    df_closed = df.iloc[:-1].copy()  # Excluir última vela en formación
-    
-    # 1. PRIMERO calcular features para los datos de ENTRADA (df)
-    if len(df_closed) < 1000:  # Necesitamos mínimo para calcular features
+    df_closed = df.iloc[:-1].copy() 
+
+    if len(df_closed) < 1000:
         logger.error(f"Datos insuficientes para features: {len(df_closed)} velas")
         return
 
     model_loaded = load_model(MODEL_FILE)
-    #print(model_loaded)
-    
-    #print("Calculando features para datos de entrada...")
+
     df_basic = calculate_basic_features(df_closed)
     df_with_features = calculate_trend_and_wavelet_features(df_basic, wavelet_window, wavelet_level, wavelet_type)
-    
-    # Verificar que tenemos las features necesarias
+
     required_features = ['log_returns', 'wavelet_vol', 'autocorr_5', 'trend_strength', 'range']
     for feat in required_features:
         if feat not in df_with_features.columns:
             logger.error(f"Error: Falta columnas feature {feat}")
             return
-    
-    # 2. Verificar entrenamiento (usar df_with_features para consistencia)
+ 
     if not model_loaded:
         logger.error('ETRENAMIENTO NECESARIO, entrenar de forma independiente')
     
-    # 3. Generar señales con datos que TIENEN features
-    #print("Generando señales...")
     signal, last_signal_time = generate_transition_signal_realtime(
         symbol,
-        df_with_features,  # ← ESTE ES EL CAMBIO CLAVE
-        model_loaded['state_info'],      # ← Usar del modelo cargado
-        model_loaded['model'],           # ← Usar del modelo cargado  
-        model_loaded['scaler'],          # ← Usar del modelo cargado
+        df_with_features,  
+        model_loaded['state_info'],      
+        model_loaded['model'],          
+        model_loaded['scaler'],         
         consolidation_required,
         last_signal_time
     )
 
-    # 4. Procesar señales
     if signal is not None:
         direction = "BUY" if signal['signal'] == 1 else "SELL"
         
@@ -90,9 +80,7 @@ def Wavelet_HMM_Strategy(df, symbol, MODEL_FILE, wavelet_window, wavelet_level, 
 last_signal_time2 = None
 
 def PCA_ML_Strategy(df, symbol):
-    """
-    Estrategia basada en PCA y Machine Learning - VERSIÓN CORREGIDA
-    """
+
     global last_signal_time2
 
     magic = 6666666666
@@ -102,29 +90,25 @@ def PCA_ML_Strategy(df, symbol):
     if not isinstance(df, pd.DataFrame):
         df = pd.DataFrame(df)
 
-    df_closed = df.iloc[:-1].copy()  # Excluir última vela en formación
-    
-    # ✅ CORREGIDO: Verificar con MIN_DATA_NEEDED, no PCA_TRAIN_WINDOW
+    df_closed = df.iloc[:-1].copy()  
+
     if len(df_closed) < MIN_DATA_NEEDED:
         print(f"Datos insuficientes para PCA+ML: {len(df_closed)} < {MIN_DATA_NEEDED} velas")
         return
 
-    # Cargar modelo
     model_loaded = load_pca_ml_model()
     
     if not model_loaded:
         print('MODELO PCA+ML NO ENCONTRADO, entrenar de forma independiente')
         return
 
-    # Generar señales con datos actuales
     signal, last_signal_time2 = generate_pca_ml_signal_realtime(
-        df_closed,  # DataFrame con precios multi-símbolo
+        df_closed,  
         model_loaded['pca_data'],      
         model_loaded['model'],           
         last_signal_time
     )
-    
-    # Procesar señales (EXACTAMENTE como tu formato)
+ 
     if signal is not None:
         direction = "BUY" if signal['signal'] == 1 else "SELL"
         
